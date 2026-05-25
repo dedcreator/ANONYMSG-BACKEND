@@ -27,7 +27,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-0k7u3_eo(z%(is&o0a_^e-ya@jg^-)%$7&efw=%gscbk!n!mrr'
 DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'localhost:3000']
+ALLOWED_HOSTS = ['anonymsg.pythonanywhere.com']
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -109,6 +110,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://anonymsg.pythonanywhere.com",
+    "https://use-anonymsg.vercel.app",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -157,3 +160,9 @@ CHANNEL_LAYERS = {
     },
 }
 RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
+
+# Static files for production
+STATIC_URL = '/static/'
+STATIC_ROOT = '/home/yourusername/static'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = '/home/yourusername/media'
