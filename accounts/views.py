@@ -42,25 +42,45 @@ class LoginView(generics.GenericAPIView):
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
         
+        print(f"🔐 Login attempt - Email: {email}")  # Debug
+        
+        # Try to find the user by email
         try:
             user = User.objects.get(email=email)
+            print(f"✅ User found: {user.username}")
+            print(f"   Verified: {user.is_verified}")
+            
+            # Authenticate using username and password
             user = authenticate(username=user.username, password=password)
+            print(f"   Authentication result: {user is not None}")
+            
         except User.DoesNotExist:
+            print(f"❌ User not found: {email}")
             user = None
         
         if not user:
-            return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({
+                'error': 'Invalid credentials',
+                'detail': 'The email or password you entered is incorrect.'
+            }, status=status.HTTP_401_UNAUTHORIZED)
         
-        if not user.is_verified:
-            return Response({'error': 'Please verify your email first'}, status=status.HTTP_401_UNAUTHORIZED)
+        # COMMENT OUT EMAIL VERIFICATION FOR DEVELOPMENT
+        # if not user.is_verified:
+        #     return Response({
+        #         'error': 'Please verify your email first',
+        #         'detail': 'Check your email for the verification link.'
+        #     }, status=status.HTTP_401_UNAUTHORIZED)
         
+        # Generate tokens
         refresh = RefreshToken.for_user(user)
+        
         return Response({
             'user': UserSerializer(user).data,
             'refresh': str(refresh),
             'access': str(refresh.access_token),
-        })
-class CurrentUserView(generics.RetrieveUpdateAPIView):  # Change this line
+        }, status=status.HTTP_200_OK)
+
+class CurrentUserView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserSerializer
     
@@ -213,23 +233,3 @@ class UserSettingsView(generics.RetrieveUpdateAPIView):
         user.auto_delete = request.data.get('auto_delete', user.auto_delete)
         user.save()
         return Response({'message': 'Settings updated'})
-
-class ResendVerificationEmailView(generics.GenericAPIView):
-    permission_classes = [AllowAny]
-    
-    def post(self, request):
-        email = request.data.get('email')
-        
-        if not email:
-            return Response({'error': 'Email is required'}, status=400)
-        
-        try:
-            user = User.objects.get(email=email)
-            
-            if user.is_verified:
-                return Response({'error': 'Email already verified'}, status=400)
-            
-            send_verification_email(user)
-            return Response({'message': 'Verification email sent!'})
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=404)

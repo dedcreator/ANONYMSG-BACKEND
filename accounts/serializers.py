@@ -6,7 +6,10 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'is_verified', 'created_at', 'total_messages_received']
+        fields = [
+            'id', 'username', 'email', 'is_verified', 'created_at', 
+            'total_messages_received', 'custom_css', 'profile_theme', 'custom_font'
+        ]
         read_only_fields = ['id', 'is_verified', 'created_at', 'total_messages_received']
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -34,3 +37,12 @@ class RegisterSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(required=True, write_only=True)
+
+class UserSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            'email_notifications', 'push_notifications', 'weekly_digest',
+            'public_wall', 'allow_voice', 'auto_delete',
+            'custom_css', 'profile_theme', 'custom_font'
+        ]

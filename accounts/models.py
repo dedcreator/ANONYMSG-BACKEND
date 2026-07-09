@@ -19,7 +19,7 @@ class User(AbstractUser):
     allow_voice_messages = models.BooleanField(default=True)
     public_message_wall = models.BooleanField(default=False)
     
-    # Notification settings - make sure these are properly indented (4 spaces)
+    # Notification settings
     email_notifications = models.BooleanField(default=True)
     push_notifications = models.BooleanField(default=True)
     weekly_digest = models.BooleanField(default=False)
@@ -28,6 +28,11 @@ class User(AbstractUser):
     public_wall = models.BooleanField(default=True)
     allow_voice = models.BooleanField(default=True)
     auto_delete = models.BooleanField(default=False)
+    
+    # 🎨 Customization Features
+    custom_css = models.TextField(blank=True, null=True)
+    profile_theme = models.CharField(max_length=20, default='dark')
+    custom_font = models.CharField(max_length=50, default='inter')
     
     def __str__(self):
         return self.username

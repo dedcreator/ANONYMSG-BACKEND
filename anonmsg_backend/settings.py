@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-0k7u3_eo(z%(is&o0a_^e-ya@jg^-)%$7&efw=%gscbk!n!mrr'
 DEBUG = True
-ALLOWED_HOSTS = ['anonymsg.pythonanywhere.com']
+ALLOWED_HOSTS = ['anonymsg.pythonanywhere.com', 'localhost', '127.0.0.1', '0.0.0.0']
 
 
 INSTALLED_APPS = [
@@ -161,8 +161,30 @@ CHANNEL_LAYERS = {
 }
 RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
 
-# Static files for production
+# Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
-STATIC_ROOT = '/home/yourusername/static'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Fixed: uses BASE_DIR
+
+# Media files (User uploaded content)
 MEDIA_URL = '/media/'
-MEDIA_ROOT = '/home/yourusername/media'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Fixed: uses BASE_DIR
+
+# Create media directories if they don't exist
+os.makedirs(MEDIA_ROOT, exist_ok=True)
+os.makedirs(os.path.join(MEDIA_ROOT, 'images'), exist_ok=True)
+os.makedirs(os.path.join(MEDIA_ROOT, 'voice_messages'), exist_ok=True)
+
+# Create static directory if it doesn't exist
+os.makedirs(STATIC_ROOT, exist_ok=True)
+
+DEBUG = True
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
