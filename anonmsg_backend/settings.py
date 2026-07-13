@@ -163,6 +163,7 @@ RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
+<<<<<<< Updated upstream
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Fixed: uses BASE_DIR
 
 # Media files (User uploaded content)
@@ -188,3 +189,8 @@ CACHES = {
         'LOCATION': 'unique-snowflake',
     }
 }
+=======
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+>>>>>>> Stashed changes
