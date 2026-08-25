@@ -20,8 +20,15 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.static import serve
 from rest_framework_simplejwt.views import TokenRefreshView
+from anonmsg_backend.views import health_check
 
 urlpatterns = [
+    path('', health_check, name='root_health_check'),
+    path('health/', health_check, name='health_check'),
+    path('health', health_check, name='health_check_no_slash'),
+    path('healthz', health_check, name='healthz'),
+    path('api/health/', health_check, name='api_health_check'),
+    path('api/health', health_check, name='api_health_check_no_slash'),
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/profile/', include('profiles.urls')),
