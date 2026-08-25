@@ -1,4 +1,5 @@
 # backend/accounts/views.py
+import logging
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -13,6 +14,8 @@ from .serializers import (
 from .models import User
 from .utils import send_verification_email, send_password_reset_email
 
+logger = logging.getLogger(__name__)
+
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -25,7 +28,10 @@ class RegisterView(generics.CreateAPIView):
         user = serializer.save()
 
         # Send verification email
-        send_verification_email(user)
+        try:
+            send_verification_email(user)
+        except Exception as e:
+            logger.error(f"Error sending verification email during registration: {e}")
 
         refresh = RefreshToken.for_user(user)
         return Response({
@@ -44,13 +50,13 @@ class LoginView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        email = serializer.validated_data['email']
+        email = serializer.validated_data['email'].strip().lower()
         password = serializer.validated_data['password']
-        try:
-            user = User.objects.get(email=email)
-            user = authenticate(username=user.username, password=password)
-        except User.DoesNotExist:
-            user = None
+        
+        user_obj = User.objects.filter(email__iexact=email).first()
+        user = None
+        if user_obj:
+            user = authenticate(username=user_obj.username, password=password)
 
         if not user:
             return Response({
@@ -79,17 +85,19 @@ class VerifyEmailView(generics.GenericAPIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        token = request.data.get('token')
-        email = request.data.get('email')
+        token = request.data.get('token', '').strip()
+        email = request.data.get('email', '').strip().lower()
 
         if not token or not email:
             return Response({'error': 'Token and email are required'}, status=400)
 
         try:
-            user = User.objects.get(email=email, verification_token=token)
+            user = User.objects.filter(email__iexact=email, verification_token=token).first()
+            if not user:
+                return Response({'error': 'Invalid verification link'}, status=400)
 
             # Check if token expired (24 hours)
-            if user.verification_token_created_at < timezone.now() - timedelta(hours=24):
+            if user.verification_token_created_at and user.verification_token_created_at < timezone.now() - timedelta(hours=24):
                 send_verification_email(user)
                 return Response({'error': 'Token expired. A new verification email has been sent.'}, status=400)
 
@@ -99,7 +107,8 @@ class VerifyEmailView(generics.GenericAPIView):
             user.save()
 
             return Response({'message': 'Email verified successfully!'})
-        except User.DoesNotExist:
+        except Exception as e:
+            logger.error(f"Error verifying email: {e}")
             return Response({'error': 'Invalid verification link'}, status=400)
 
 
@@ -107,68 +116,74 @@ class ResendVerificationEmailView(generics.GenericAPIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        email = request.data.get('email')
+        email = request.data.get('email', '').strip().lower()
 
         if not email:
             return Response({'error': 'Email is required'}, status=400)
 
-        try:
-            user = User.objects.get(email=email)
-
-            if user.is_verified:
-                return Response({'error': 'Email already verified'}, status=400)
-
-            send_verification_email(user)
-            return Response({'message': 'Verification email sent!'})
-        except User.DoesNotExist:
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
             return Response({'error': 'User not found'}, status=404)
+
+        if user.is_verified:
+            return Response({'error': 'Email already verified'}, status=400)
+
+        send_verification_email(user)
+        return Response({'message': 'Verification email sent!'})
 
 
 class ForgotPasswordView(generics.GenericAPIView):
     permission_classes = [AllowAny]
-    serializer_class = ForgotPasswordSerializer  # THIS IS REQUIRED
+    serializer_class = ForgotPasswordSerializer
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        email = serializer.validated_data['email']
+        email = serializer.validated_data['email'].strip().lower()
+        logger.info(f"Password reset requested for email: {email}")
 
-        try:
-            user = User.objects.get(email=email)
-            send_password_reset_email(user)
-            return Response({'message': 'Password reset email sent! Check your inbox.'})
-        except User.DoesNotExist:
-            return Response({'message': 'If an account exists with this email, a reset link has been sent.'})
+        user = User.objects.filter(email__iexact=email).first()
+        if user:
+            logger.info(f"User found for password reset: {user.username} ({user.email}). Sending reset email...")
+            sent = send_password_reset_email(user)
+            if sent:
+                logger.info(f"Password reset email sent successfully to {user.email}")
+            else:
+                logger.error(f"Failed to dispatch password reset email to {user.email}")
+        else:
+            logger.warning(f"Password reset attempted for non-existent email: {email}")
+
+        return Response({'message': 'If an account exists with this email, a reset link has been sent.'})
 
 
 class ResetPasswordView(generics.GenericAPIView):
     permission_classes = [AllowAny]
-    serializer_class = ResetPasswordSerializer  # THIS IS REQUIRED
+    serializer_class = ResetPasswordSerializer
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        token = serializer.validated_data['token']
-        email = serializer.validated_data['email']
+        token = serializer.validated_data['token'].strip()
+        email = serializer.validated_data['email'].strip().lower()
         new_password = serializer.validated_data['new_password']
 
-        try:
-            user = User.objects.get(email=email, reset_password_token=token)
+        user = User.objects.filter(email__iexact=email, reset_password_token=token).first()
+        if not user:
+            return Response({'error': 'Invalid or expired reset link. Please request a new one.'}, status=400)
 
-            # Check if token expired (1 hour)
-            if user.reset_password_token_created_at < timezone.now() - timedelta(hours=1):
-                return Response({'error': 'Reset link expired. Please request a new one.'}, status=400)
+        # Check if token expired (1 hour)
+        if not user.reset_password_token_created_at or user.reset_password_token_created_at < timezone.now() - timedelta(hours=1):
+            return Response({'error': 'Reset link expired. Please request a new one.'}, status=400)
 
-            user.set_password(new_password)
-            user.reset_password_token = None
-            user.reset_password_token_created_at = None
-            user.save()
+        user.set_password(new_password)
+        user.reset_password_token = None
+        user.reset_password_token_created_at = None
+        user.save()
 
-            return Response({'message': 'Password reset successfully! You can now login.'})
-        except User.DoesNotExist:
-            return Response({'error': 'Invalid reset link'}, status=400)
+        logger.info(f"Password successfully reset for user: {user.username}")
+        return Response({'message': 'Password reset successfully! You can now login.'})
 
 
 class UserSettingsView(generics.RetrieveUpdateAPIView):
