@@ -15,20 +15,29 @@ from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
 
+try:
+    import dj_database_url
+    HAS_DJ_DATABASE_URL = True
+except ImportError:
+    HAS_DJ_DATABASE_URL = False
+
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-0k7u3_eo(z%(is&o0a_^e-ya@jg^-)%$7&efw=%gscbk!n!mrr'
-DEBUG = True
-ALLOWED_HOSTS = ['anonymsg.pythonanywhere.com', 'localhost', '127.0.0.1', '0.0.0.0']
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-0k7u3_eo(z%(is&o0a_^e-ya@jg^-)%$7&efw=%gscbk!n!mrr')
 
+# DEBUG flag from environment (defaults to False in production)
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't', 'yes')
+
+# Hosts
+ALLOWED_HOSTS_ENV = os.getenv('ALLOWED_HOSTS', '')
+if ALLOWED_HOSTS_ENV:
+    ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_ENV.split(',') if host.strip()]
+else:
+    ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -45,7 +54,14 @@ INSTALLED_APPS = [
     'accounts',
     'anonymous_messages',
     'profiles',
+    'payments',
 ]
+
+try:
+    import daphne
+    INSTALLED_APPS.insert(0, 'daphne')
+except ImportError:
+    pass
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -57,6 +73,12 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+try:
+    import whitenoise
+    MIDDLEWARE.insert(2, 'whitenoise.middleware.WhiteNoiseMiddleware')
+except ImportError:
+    pass
 
 ROOT_URLCONF = 'anonmsg_backend.urls'
 
@@ -79,12 +101,23 @@ TEMPLATES = [
 WSGI_APPLICATION = 'anonmsg_backend.wsgi.application'
 ASGI_APPLICATION = 'anonmsg_backend.asgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Database Configuration (PostgreSQL on Render via DATABASE_URL, fallback to SQLite locally)
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL and HAS_DJ_DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -100,47 +133,69 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = 'static/'
+# Static & Media Storage
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-MEDIA_URL = 'media/'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+os.makedirs(MEDIA_ROOT, exist_ok=True)
+os.makedirs(os.path.join(MEDIA_ROOT, 'images'), exist_ok=True)
+os.makedirs(os.path.join(MEDIA_ROOT, 'voice_messages'), exist_ok=True)
+os.makedirs(STATIC_ROOT, exist_ok=True)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# CORS & CSRF
+CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'True').lower() in ('true', '1', 't')
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://anonymsg.pythonanywhere.com",
     "https://use-anonymsg.vercel.app",
 ]
+extra_cors = os.getenv('CORS_ALLOWED_ORIGINS', '')
+if extra_cors:
+    for origin in extra_cors.split(','):
+        if origin.strip() and origin.strip() not in CORS_ALLOWED_ORIGINS:
+            CORS_ALLOWED_ORIGINS.append(origin.strip())
+
 CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://*.onrender.com",
+    "https://*.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+extra_csrf = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+if extra_csrf:
+    for origin in extra_csrf.split(','):
+        if origin.strip() and origin.strip() not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(origin.strip())
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.AllowAny',  # Changed to AllowAny for testing
+        'rest_framework.permissions.AllowAny',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
 }
 
-
-
-# Email settings for Gmail SMTP
+# Email settings
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-
-# Try Google's alternate SMTP server
-EMAIL_HOST = 'smtp.googlemail.com'  # Alternative to smtp.gmail.com
-EMAIL_PORT = 465  # Use SSL instead of TLS
-EMAIL_USE_SSL = True  # Change from TLS to SSL
+EMAIL_HOST = 'smtp.googlemail.com'
+EMAIL_PORT = 465
+EMAIL_USE_SSL = True
 EMAIL_USE_TLS = False
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = f'AnonMsg <{EMAIL_HOST_USER}>'
+DEFAULT_FROM_EMAIL = f'AnonQ <{EMAIL_HOST_USER}>'
 
-# Frontend URL
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 
 SIMPLE_JWT = {
@@ -151,37 +206,26 @@ SIMPLE_JWT = {
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
 }
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
+
+# Real-time WebSockets / Channels Layer (Redis or In-Memory fallback)
+REDIS_URL = os.getenv('REDIS_URL')
+if REDIS_URL:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                "hosts": [REDIS_URL],
+            },
         },
-    },
-}
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
+
 RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
-
-# Static files (CSS, JavaScript, Images)
-STATIC_URL = '/static/'
-<<<<<<< Updated upstream
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Fixed: uses BASE_DIR
-
-# Media files (User uploaded content)
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Fixed: uses BASE_DIR
-
-# Create media directories if they don't exist
-os.makedirs(MEDIA_ROOT, exist_ok=True)
-os.makedirs(os.path.join(MEDIA_ROOT, 'images'), exist_ok=True)
-os.makedirs(os.path.join(MEDIA_ROOT, 'voice_messages'), exist_ok=True)
-
-# Create static directory if it doesn't exist
-os.makedirs(STATIC_ROOT, exist_ok=True)
-
-DEBUG = True
-
-# Default primary key field type
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CACHES = {
     'default': {
@@ -189,8 +233,10 @@ CACHES = {
         'LOCATION': 'unique-snowflake',
     }
 }
-=======
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
->>>>>>> Stashed changes
+
+# Flutterwave Configuration
+FLUTTERWAVE_PUBLIC_KEY = os.getenv('FLUTTERWAVE_PUBLIC_KEY', 'FLWPUBK_TEST-SANDBOX-DEMO-X')
+FLUTTERWAVE_SECRET_KEY = os.getenv('FLUTTERWAVE_SECRET_KEY', 'FLWSECK_TEST-SANDBOX-DEMO-X')
+FLUTTERWAVE_ENCRYPTION_KEY = os.getenv('FLUTTERWAVE_ENCRYPTION_KEY', '')
+FLUTTERWAVE_SECRET_HASH = os.getenv('FLUTTERWAVE_SECRET_HASH', 'anonmsg_flutterwave_secret')
+

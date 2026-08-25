@@ -46,61 +46,26 @@ class LoginView(generics.GenericAPIView):
 
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
-<<<<<<< Updated upstream
-        
-        print(f"🔐 Login attempt - Email: {email}")  # Debug
-        
-        # Try to find the user by email
-=======
-
->>>>>>> Stashed changes
         try:
             user = User.objects.get(email=email)
-            print(f"✅ User found: {user.username}")
-            print(f"   Verified: {user.is_verified}")
-            
-            # Authenticate using username and password
             user = authenticate(username=user.username, password=password)
-            print(f"   Authentication result: {user is not None}")
-            
         except User.DoesNotExist:
-            print(f"❌ User not found: {email}")
             user = None
 
         if not user:
-<<<<<<< Updated upstream
             return Response({
                 'error': 'Invalid credentials',
                 'detail': 'The email or password you entered is incorrect.'
             }, status=status.HTTP_401_UNAUTHORIZED)
-        
-        # COMMENT OUT EMAIL VERIFICATION FOR DEVELOPMENT
-        # if not user.is_verified:
-        #     return Response({
-        #         'error': 'Please verify your email first',
-        #         'detail': 'Check your email for the verification link.'
-        #     }, status=status.HTTP_401_UNAUTHORIZED)
-        
-        # Generate tokens
-=======
-            return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
-        if not user.is_verified:
-            return Response({'error': 'Please verify your email first'}, status=status.HTTP_401_UNAUTHORIZED)
-
->>>>>>> Stashed changes
         refresh = RefreshToken.for_user(user)
         
         return Response({
             'user': UserSerializer(user).data,
             'refresh': str(refresh),
             'access': str(refresh.access_token),
-<<<<<<< Updated upstream
         }, status=status.HTTP_200_OK)
-=======
-        })
 
->>>>>>> Stashed changes
 
 class CurrentUserView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
@@ -229,8 +194,5 @@ class UserSettingsView(generics.RetrieveUpdateAPIView):
         user.allow_voice = request.data.get('allow_voice', user.allow_voice)
         user.auto_delete = request.data.get('auto_delete', user.auto_delete)
         user.save()
-<<<<<<< Updated upstream
         return Response({'message': 'Settings updated'})
-=======
-        return Response({'message': 'Settings updated'})
->>>>>>> Stashed changes
+

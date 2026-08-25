@@ -41,7 +41,6 @@ class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(required=True, write_only=True)
 
-<<<<<<< Updated upstream
 class UserSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -50,9 +49,8 @@ class UserSettingsSerializer(serializers.ModelSerializer):
             'public_wall', 'allow_voice', 'auto_delete',
             'custom_css', 'profile_theme', 'custom_font'
         ]
-=======
 
-# ADD THESE TWO CLASSES
+
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
 
@@ -67,4 +65,4 @@ class ResetPasswordSerializer(serializers.Serializer):
         if attrs['new_password'] != attrs['confirm_password']:
             raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
         return attrs
->>>>>>> Stashed changes
+
